@@ -182,7 +182,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	platform, err := util.GetPlatform(context.Background(), mgr.GetAPIReader())
+	infra, err := util.GetInfra(context.Background(), mgr.GetAPIReader())
+	if err != nil {
+		klog.Error(err, "unable to get infrastructure object")
+		os.Exit(1)
+	}
+
+	platform, err := util.GetPlatform(context.Background(), infra)
 	if err != nil {
 		klog.Error(err, "unable to get platform from infrastructure object")
 		os.Exit(1)
@@ -196,7 +202,7 @@ func main() {
 		configv1.PowerVSPlatformType,
 		configv1.VSpherePlatformType,
 		configv1.OpenStackPlatformType:
-		setupReconcilers(mgr, platform, containerImages, applyClient, apiextensionsClient)
+		setupReconcilers(mgr, infra, platform, containerImages, applyClient, apiextensionsClient)
 		setupWebhooks(mgr)
 	default:
 		klog.Infof("detected platform %q is not supported, skipping capi controllers setup", platform)
@@ -247,7 +253,7 @@ func getClusterOperatorStatusClient(mgr manager.Manager, controller string) oper
 	}
 }
 
-func setupReconcilers(mgr manager.Manager, platform configv1.PlatformType, containerImages map[string]string, applyClient *kubernetes.Clientset, apiextensionsClient *apiextensionsclient.Clientset) {
+func setupReconcilers(mgr manager.Manager, infra configv1.Infrastructure, platform configv1.PlatformType, containerImages map[string]string, applyClient *kubernetes.Clientset, apiextensionsClient *apiextensionsclient.Clientset) {
 	if err := (&cluster.CoreClusterReconciler{
 		ClusterOperatorStatusClient: getClusterOperatorStatusClient(mgr, "cluster-capi-operator-cluster-resource-controller"),
 		Cluster:                     &clusterv1.Cluster{},
@@ -294,6 +300,7 @@ func setupReconcilers(mgr manager.Manager, platform configv1.PlatformType, conta
 		Images:                      containerImages,
 		RestCfg:                     mgr.GetConfig(),
 		Platform:                    platform,
+		Infra:                       infra,
 	}).SetupWithManager(mgr); err != nil {
 		klog.Error(err, "unable to create infracluster controller", "controller", "InfraCluster")
 		os.Exit(1)
